@@ -1,5 +1,6 @@
 package org.example.studentmanagementsystem.service;
 
+import org.example.studentmanagementsystem.dto.PageResponse;
 import org.example.studentmanagementsystem.dto.StudentRequest;
 import org.example.studentmanagementsystem.dto.StudentResponse;
 
@@ -11,7 +12,8 @@ public interface StudentService {
 
     List<StudentResponse> createStudents(List<StudentRequest> requests);
 
-    List<StudentResponse> getAllStudents();
+    PageResponse<StudentResponse> getAllStudents(int page, int size, String sortBy, String direction,
+                                                 String keyword, Integer departmentId, Integer courseId);
 
     StudentResponse getStudentById(int id);
 

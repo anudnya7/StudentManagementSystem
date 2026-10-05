@@ -1,5 +1,6 @@
 package org.example.studentmanagementsystem.dto;
 
+import java.io.Serializable;
 import java.util.List;
 
 public record PageResponse<T>(
@@ -9,5 +10,5 @@ public record PageResponse<T>(
         long totalElements,
         int totalPages,
         boolean last
-) {
+) implements Serializable {
 }

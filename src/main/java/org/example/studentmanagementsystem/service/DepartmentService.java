@@ -11,6 +11,10 @@ import org.example.studentmanagementsystem.repository.CourseRepository;
 import org.example.studentmanagementsystem.repository.DepartmentRepository;
 import org.example.studentmanagementsystem.repository.StudentRepository;
 import org.springframework.http.HttpStatus;
+import org.example.studentmanagementsystem.config.CacheNames;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +30,7 @@ public class DepartmentService {
     private final CourseRepository courseRepository;
     private final StudentRepository studentRepository;
 
+    @CacheEvict(cacheNames = CacheNames.DEPARTMENTS, allEntries = true)
     public DepartmentResponse create(DepartmentRequest r) {
         log.info("Creating department: {}", r.code());
         if (departmentRepository.existsByNameIgnoreCase(r.name())) {
@@ -45,17 +50,25 @@ public class DepartmentService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = CacheNames.DEPARTMENTS, key = "'all'")
     public List<DepartmentResponse> getAll() {
         log.debug("Fetching all departments");
         return departmentRepository.findAll().stream().map(this::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = CacheNames.DEPARTMENTS, key = "'id-' + #id")
     public DepartmentResponse getById(int id) {
         log.debug("Fetching department with id: {}", id);
         return toResponse(find(id));
     }
 
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.DEPARTMENTS, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.COURSES, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.STUDENTS, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.STUDENT_PAGES, allEntries = true)
+    })
     public DepartmentResponse update(int id, DepartmentRequest r) {
         log.info("Updating department with id: {}", id);
         Department d = find(id);
@@ -73,9 +86,10 @@ public class DepartmentService {
 
         d.setName(r.name());
         d.setCode(r.code().toUpperCase());
-        return toResponse(departmentRepository.save(d));
+        return toResponse(departmentRepository.saveAndFlush(d));
     }
 
+    @CacheEvict(cacheNames = CacheNames.DEPARTMENTS, allEntries = true)
     public void delete(int id) {
         log.info("Deleting department with id: {}", id);
         Department d = find(id);
@@ -94,6 +108,7 @@ public class DepartmentService {
     }
 
     private DepartmentResponse toResponse(Department d) {
-        return new DepartmentResponse(d.getId(), d.getName(), d.getCode());
+        return new DepartmentResponse(d.getId(), d.getName(), d.getCode(),
+                d.getCreatedAt(), d.getUpdatedAt(), d.getCreatedBy(), d.getUpdatedBy());
     }
 }

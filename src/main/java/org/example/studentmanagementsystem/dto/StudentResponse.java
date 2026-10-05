@@ -2,6 +2,8 @@ package org.example.studentmanagementsystem.dto;
 
 import lombok.*;
 
+import java.io.Serializable;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -9,7 +11,9 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class StudentResponse {
+public class StudentResponse implements Serializable {
+    private static final long serialVersionUID = 2L;
+
     private Integer id;
     private String firstName;
     private String lastName;
@@ -20,4 +24,10 @@ public class StudentResponse {
     private int age;
     private String departmentName;
     private List<String> courses;
+
+    // audit info (from BaseEntity)
+    private Instant createdAt;
+    private Instant updatedAt;
+    private String createdBy;
+    private String updatedBy;
 }

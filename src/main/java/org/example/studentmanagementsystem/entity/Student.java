@@ -14,7 +14,7 @@ import java.util.Set;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Student {
+public class Student extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -34,6 +34,11 @@ public class Student {
 
     @Column(nullable = false)
     private LocalDate dateOfBirth;
+
+    // BCrypt hash. Null for students created without registration (cannot log in)
+    private String password;
+
+    private String photoFileName;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")

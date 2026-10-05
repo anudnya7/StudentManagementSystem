@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -139,5 +139,17 @@ public class GlobalExceptionHandler {
         body.put("error", "Internal Server Error");
         body.put("message", "Something went wrong");
         return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleTooLarge(MaxUploadSizeExceededException ex) {
+        log.warn("Upload too large");
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", 413);
+        body.put("error", "Payload Too Large");
+        body.put("message", "File exceeds the 2MB limit");
+        return new ResponseEntity<>(body, HttpStatus.PAYLOAD_TOO_LARGE);
     }
 }

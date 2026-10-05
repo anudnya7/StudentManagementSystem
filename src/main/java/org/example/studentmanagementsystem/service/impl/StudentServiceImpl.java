@@ -2,6 +2,7 @@ package org.example.studentmanagementsystem.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.studentmanagementsystem.dto.PageResponse;
 import org.example.studentmanagementsystem.dto.StudentRequest;
 import org.example.studentmanagementsystem.dto.StudentResponse;
 import org.example.studentmanagementsystem.entity.Course;
@@ -14,8 +15,18 @@ import org.example.studentmanagementsystem.exception.ResourceNotFoundException;
 import org.example.studentmanagementsystem.repository.CourseRepository;
 import org.example.studentmanagementsystem.repository.DepartmentRepository;
 import org.example.studentmanagementsystem.repository.StudentRepository;
+import org.example.studentmanagementsystem.repository.StudentSpecifications;
 import org.example.studentmanagementsystem.service.StudentService;
 import org.springframework.dao.DataAccessException;
+import org.example.studentmanagementsystem.config.CacheNames;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +44,9 @@ import java.util.Set;
 @Transactional
 public class StudentServiceImpl implements StudentService {
 
+    private static final Set<String> ALLOWED_SORT_FIELDS =
+            Set.of("id", "firstName", "lastName", "email", "dateOfBirth");
+
     private final StudentRepository studentRepository;
     private final DepartmentRepository departmentRepository;
     private final CourseRepository courseRepository;
@@ -40,6 +54,7 @@ public class StudentServiceImpl implements StudentService {
     // ---------- CRUD ----------
 
     @Override
+    @CacheEvict(cacheNames = CacheNames.STUDENT_PAGES, allEntries = true)
     public StudentResponse createStudent(StudentRequest request) {
         log.info("Creating student with email: {}", request.email());
         log.trace("Checking duplicate email and phone for: {}", request.email());
@@ -65,6 +80,7 @@ public class StudentServiceImpl implements StudentService {
     }
 
     @Override
+    @CacheEvict(cacheNames = CacheNames.STUDENT_PAGES, allEntries = true)
     public List<StudentResponse> createStudents(List<StudentRequest> requests) {
         log.info("Bulk create started for {} students", requests.size());
 
@@ -107,26 +123,53 @@ public class StudentServiceImpl implements StudentService {
         return saved;
     }
 
+    // ---------- pagination, sorting, search ----------
+
     @Override
     @Transactional(readOnly = true)
-    public List<StudentResponse> getAllStudents() {
-        log.trace("Loading all students from database");
-        List<StudentResponse> students = studentRepository.findAll()
-                .stream()
-                .map(this::toResponse)
-                .toList();
-        log.debug("getAllStudents returned {} records", students.size());
-        return students;
+    @Cacheable(cacheNames = CacheNames.STUDENT_PAGES,
+            key = "'p' + #page + '-s' + #size + '-' + #sortBy + '-' + #direction + '-k' + #keyword + '-d' + #departmentId + '-c' + #courseId")
+    public PageResponse<StudentResponse> getAllStudents(int page, int size, String sortBy, String direction,
+                                                        String keyword, Integer departmentId, Integer courseId) {
+        if (!ALLOWED_SORT_FIELDS.contains(sortBy)) {
+            throw new BusinessException("Invalid sortBy: " + sortBy + ". Allowed: " + ALLOWED_SORT_FIELDS,
+                    "INVALID_SORT_FIELD", HttpStatus.BAD_REQUEST);
+        }
+        if (page < 0 || size < 1 || size > 100) {
+            throw new BusinessException("page must be >= 0 and size must be between 1 and 100",
+                    "INVALID_PAGE", HttpStatus.BAD_REQUEST);
+        }
+
+        Sort sort = direction.equalsIgnoreCase("desc")
+                ? Sort.by(sortBy).descending()
+                : Sort.by(sortBy).ascending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<Student> result = studentRepository.findAll(
+                StudentSpecifications.filter(keyword, departmentId, courseId), pageable);
+
+        log.debug("getAllStudents page={} size={} sortBy={} {} -> {} of {} records",
+                page, size, sortBy, direction, result.getNumberOfElements(), result.getTotalElements());
+
+        List<StudentResponse> content = result.getContent().stream().map(this::toResponse).toList();
+
+        return new PageResponse<>(content, result.getNumber(), result.getSize(),
+                result.getTotalElements(), result.getTotalPages(), result.isLast());
     }
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = CacheNames.STUDENTS, key = "#id")
     public StudentResponse getStudentById(int id) {
         log.debug("Fetching student with id: {}", id);
         return toResponse(findStudentOrThrow(id));
     }
 
     @Override
+    @Caching(
+            put = @CachePut(cacheNames = CacheNames.STUDENTS, key = "#id"),
+            evict = @CacheEvict(cacheNames = CacheNames.STUDENT_PAGES, allEntries = true)
+    )
     public StudentResponse updateStudent(int id, StudentRequest request) {
         log.info("Updating student with id: {}", id);
         Student existing = findStudentOrThrow(id);
@@ -152,6 +195,10 @@ public class StudentServiceImpl implements StudentService {
     }
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.STUDENTS, key = "#id"),
+            @CacheEvict(cacheNames = CacheNames.STUDENT_PAGES, allEntries = true)
+    })
     public void deleteStudent(int id) {
         log.debug("Delete requested for id: {}", id);
         Student existing = findStudentOrThrow(id);
@@ -164,16 +211,19 @@ public class StudentServiceImpl implements StudentService {
         log.info("Student deleted with id: {}", id);
     }
 
-    // ---------- Department and course logic ----------
+    // ---------- department and course logic ----------
 
     @Override
+    @Caching(
+            put = @CachePut(cacheNames = CacheNames.STUDENTS, key = "#studentId"),
+            evict = @CacheEvict(cacheNames = CacheNames.STUDENT_PAGES, allEntries = true)
+    )
     public StudentResponse assignDepartment(int studentId, int departmentId) {
         Student s = findStudentOrThrow(studentId);
         Department d = departmentRepository.findById(departmentId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Department not found with id: " + departmentId));
 
-        // Business rule: changing department drops courses from the old department
         if (s.getDepartment() != null && !s.getDepartment().getId().equals(departmentId)) {
             log.info("Student {} changed department, clearing {} courses",
                     studentId, s.getCourses().size());
@@ -186,6 +236,10 @@ public class StudentServiceImpl implements StudentService {
     }
 
     @Override
+    @Caching(
+            put = @CachePut(cacheNames = CacheNames.STUDENTS, key = "#studentId"),
+            evict = @CacheEvict(cacheNames = CacheNames.STUDENT_PAGES, allEntries = true)
+    )
     public StudentResponse enrollCourse(int studentId, int courseId) {
         Student s = findStudentOrThrow(studentId);
         Course c = courseRepository.findById(courseId)
@@ -209,6 +263,10 @@ public class StudentServiceImpl implements StudentService {
     }
 
     @Override
+    @Caching(
+            put = @CachePut(cacheNames = CacheNames.STUDENTS, key = "#studentId"),
+            evict = @CacheEvict(cacheNames = CacheNames.STUDENT_PAGES, allEntries = true)
+    )
     public StudentResponse dropCourse(int studentId, int courseId) {
         Student s = findStudentOrThrow(studentId);
         boolean removed = s.getCourses().removeIf(c -> c.getId().equals(courseId));
@@ -224,7 +282,7 @@ public class StudentServiceImpl implements StudentService {
 
     private Student save(Student student) {
         try {
-            return studentRepository.save(student);
+            return studentRepository.saveAndFlush(student);
         } catch (DataAccessException ex) {
             log.error("Database error while saving student", ex);
             throw ex;
@@ -252,6 +310,10 @@ public class StudentServiceImpl implements StudentService {
                 .age(age)
                 .departmentName(s.getDepartment() != null ? s.getDepartment().getName() : null)
                 .courses(s.getCourses().stream().map(Course::getTitle).sorted().toList())
+                .createdAt(s.getCreatedAt())
+                .updatedAt(s.getUpdatedAt())
+                .createdBy(s.getCreatedBy())
+                .updatedBy(s.getUpdatedBy())
                 .build();
     }
 }

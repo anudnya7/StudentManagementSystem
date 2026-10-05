@@ -12,6 +12,10 @@ import org.example.studentmanagementsystem.repository.CourseRepository;
 import org.example.studentmanagementsystem.repository.DepartmentRepository;
 import org.example.studentmanagementsystem.repository.StudentRepository;
 import org.springframework.http.HttpStatus;
+import org.example.studentmanagementsystem.config.CacheNames;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +31,7 @@ public class CourseService {
     private final DepartmentRepository departmentRepository;
     private final StudentRepository studentRepository;
 
+    @CacheEvict(cacheNames = CacheNames.COURSES, allEntries = true)
     public CourseResponse create(CourseRequest r) {
         log.info("Creating course: {}", r.code());
         if (courseRepository.existsByCodeIgnoreCase(r.code())) {
@@ -44,6 +49,8 @@ public class CourseService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = CacheNames.COURSES,
+            key = "#departmentId == null ? 'all' : 'dept-' + #departmentId")
     public List<CourseResponse> getAll(Integer departmentId) {
         log.debug("Fetching courses, departmentId filter: {}", departmentId);
         List<Course> courses = departmentId == null
@@ -53,11 +60,17 @@ public class CourseService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = CacheNames.COURSES, key = "'id-' + #id")
     public CourseResponse getById(int id) {
         log.debug("Fetching course with id: {}", id);
         return toResponse(find(id));
     }
 
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.COURSES, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.STUDENTS, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.STUDENT_PAGES, allEntries = true)
+    })
     public CourseResponse update(int id, CourseRequest r) {
         log.info("Updating course with id: {}", id);
         Course c = find(id);
@@ -75,9 +88,10 @@ public class CourseService {
         c.setCode(r.code().toUpperCase());
         c.setCredits(r.credits());
         c.setDepartment(findDepartment(r.departmentId()));
-        return toResponse(courseRepository.save(c));
+        return toResponse(courseRepository.saveAndFlush(c));
     }
 
+    @CacheEvict(cacheNames = CacheNames.COURSES, allEntries = true)
     public void delete(int id) {
         log.info("Deleting course with id: {}", id);
         Course c = find(id);
@@ -102,6 +116,7 @@ public class CourseService {
 
     private CourseResponse toResponse(Course c) {
         return new CourseResponse(c.getId(), c.getTitle(), c.getCode(), c.getCredits(),
-                c.getDepartment().getId(), c.getDepartment().getName());
+                c.getDepartment().getId(), c.getDepartment().getName(),
+                c.getCreatedAt(), c.getUpdatedAt(), c.getCreatedBy(), c.getUpdatedBy());
     }
 }
