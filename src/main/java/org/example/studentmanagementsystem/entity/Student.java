@@ -9,7 +9,11 @@ import java.util.Set;
 
 @Entity
 @Table(name = "students")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Student {
 
     @Id
@@ -30,11 +34,6 @@ public class Student {
 
     @Column(nullable = false)
     private LocalDate dateOfBirth;
-
-    // BCrypt hash. Nullable so existing rows and bulk-created students still work
-    private String password;
-
-    private String photoFileName;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")

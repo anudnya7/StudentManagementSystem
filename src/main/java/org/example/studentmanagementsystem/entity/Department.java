@@ -8,7 +8,11 @@ import java.util.List;
 
 @Entity
 @Table(name = "departments")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Department {
 
     @Id

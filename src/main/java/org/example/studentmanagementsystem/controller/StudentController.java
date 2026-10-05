@@ -65,7 +65,6 @@ public class StudentController {
         log.debug("PATCH /patch/{} received", id);
 
         StudentResponse current = studentService.getStudentById(id);
-        log.trace("PATCH id={} received body: {}", id, patch);
 
         StudentRequest merged = new StudentRequest(
                 patch.firstName()   != null ? patch.firstName()   : current.getFirstName(),
@@ -100,10 +99,23 @@ public class StudentController {
         return "Student deleted successfully";
     }
 
-    // TEMPORARY: triggers an ERROR log. Delete after testing.
-    @GetMapping("/test-error")
-    public String testError() {
-        log.trace("test-error: about to fail");
-        throw new IllegalStateException("Simulated failure for log testing");
+    // ---------- department and course endpoints ----------
+
+    @PostMapping("/{id}/department/{departmentId}")
+    public StudentResponse assignDepartment(@PathVariable int id, @PathVariable int departmentId) {
+        log.debug("Assign department {} to student {}", departmentId, id);
+        return studentService.assignDepartment(id, departmentId);
+    }
+
+    @PostMapping("/{id}/courses/{courseId}")
+    public StudentResponse enroll(@PathVariable int id, @PathVariable int courseId) {
+        log.debug("Enroll student {} in course {}", id, courseId);
+        return studentService.enrollCourse(id, courseId);
+    }
+
+    @DeleteMapping("/{id}/courses/{courseId}")
+    public StudentResponse drop(@PathVariable int id, @PathVariable int courseId) {
+        log.debug("Drop course {} for student {}", courseId, id);
+        return studentService.dropCourse(id, courseId);
     }
 }

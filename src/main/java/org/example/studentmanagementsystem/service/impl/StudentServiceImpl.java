@@ -4,17 +4,21 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.studentmanagementsystem.dto.StudentRequest;
 import org.example.studentmanagementsystem.dto.StudentResponse;
+import org.example.studentmanagementsystem.entity.Course;
+import org.example.studentmanagementsystem.entity.Department;
 import org.example.studentmanagementsystem.entity.Student;
+import org.example.studentmanagementsystem.exception.BusinessException;
 import org.example.studentmanagementsystem.exception.EmailAlreadyExistsException;
 import org.example.studentmanagementsystem.exception.PhoneAlreadyExistsException;
 import org.example.studentmanagementsystem.exception.ResourceNotFoundException;
+import org.example.studentmanagementsystem.repository.CourseRepository;
+import org.example.studentmanagementsystem.repository.DepartmentRepository;
 import org.example.studentmanagementsystem.repository.StudentRepository;
 import org.example.studentmanagementsystem.service.StudentService;
 import org.springframework.dao.DataAccessException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-//private final DepartmentRepository departmentRepository
-//private final CourseRepository courseRepository;
 
 import java.time.LocalDate;
 import java.time.Period;
@@ -26,9 +30,14 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Transactional
 public class StudentServiceImpl implements StudentService {
 
     private final StudentRepository studentRepository;
+    private final DepartmentRepository departmentRepository;
+    private final CourseRepository courseRepository;
+
+    // ---------- CRUD ----------
 
     @Override
     public StudentResponse createStudent(StudentRequest request) {
@@ -56,7 +65,6 @@ public class StudentServiceImpl implements StudentService {
     }
 
     @Override
-    @Transactional
     public List<StudentResponse> createStudents(List<StudentRequest> requests) {
         log.info("Bulk create started for {} students", requests.size());
 
@@ -100,18 +108,19 @@ public class StudentServiceImpl implements StudentService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<StudentResponse> getAllStudents() {
         log.trace("Loading all students from database");
         List<StudentResponse> students = studentRepository.findAll()
                 .stream()
                 .map(this::toResponse)
                 .toList();
-
         log.debug("getAllStudents returned {} records", students.size());
         return students;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public StudentResponse getStudentById(int id) {
         log.debug("Fetching student with id: {}", id);
         return toResponse(findStudentOrThrow(id));
@@ -155,6 +164,64 @@ public class StudentServiceImpl implements StudentService {
         log.info("Student deleted with id: {}", id);
     }
 
+    // ---------- Department and course logic ----------
+
+    @Override
+    public StudentResponse assignDepartment(int studentId, int departmentId) {
+        Student s = findStudentOrThrow(studentId);
+        Department d = departmentRepository.findById(departmentId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Department not found with id: " + departmentId));
+
+        // Business rule: changing department drops courses from the old department
+        if (s.getDepartment() != null && !s.getDepartment().getId().equals(departmentId)) {
+            log.info("Student {} changed department, clearing {} courses",
+                    studentId, s.getCourses().size());
+            s.getCourses().clear();
+        }
+
+        s.setDepartment(d);
+        log.info("Student {} assigned to department {}", studentId, d.getCode());
+        return toResponse(save(s));
+    }
+
+    @Override
+    public StudentResponse enrollCourse(int studentId, int courseId) {
+        Student s = findStudentOrThrow(studentId);
+        Course c = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
+
+        if (s.getDepartment() == null) {
+            throw new BusinessException("Assign a department before enrolling in courses",
+                    "NO_DEPARTMENT", HttpStatus.CONFLICT);
+        }
+        if (!c.getDepartment().getId().equals(s.getDepartment().getId())) {
+            throw new BusinessException("Course " + c.getCode() + " is not in the student's department",
+                    "COURSE_NOT_IN_DEPARTMENT", HttpStatus.CONFLICT);
+        }
+        if (!s.getCourses().add(c)) {
+            throw new BusinessException("Student already enrolled in " + c.getCode(),
+                    "ALREADY_ENROLLED", HttpStatus.CONFLICT);
+        }
+
+        log.info("Student {} enrolled in course {}", studentId, c.getCode());
+        return toResponse(save(s));
+    }
+
+    @Override
+    public StudentResponse dropCourse(int studentId, int courseId) {
+        Student s = findStudentOrThrow(studentId);
+        boolean removed = s.getCourses().removeIf(c -> c.getId().equals(courseId));
+        if (!removed) {
+            throw new BusinessException("Student is not enrolled in course " + courseId,
+                    "NOT_ENROLLED", HttpStatus.CONFLICT);
+        }
+        log.info("Student {} dropped course {}", studentId, courseId);
+        return toResponse(save(s));
+    }
+
+    // ---------- helpers ----------
+
     private Student save(Student student) {
         try {
             return studentRepository.save(student);
@@ -172,6 +239,8 @@ public class StudentServiceImpl implements StudentService {
 
     private StudentResponse toResponse(Student s) {
         int age = Period.between(s.getDateOfBirth(), LocalDate.now()).getYears();
+        log.trace("Mapping student id {} to response (age {})", s.getId(), age);
+
         return StudentResponse.builder()
                 .id(s.getId())
                 .firstName(s.getFirstName())
@@ -184,58 +253,5 @@ public class StudentServiceImpl implements StudentService {
                 .departmentName(s.getDepartment() != null ? s.getDepartment().getName() : null)
                 .courses(s.getCourses().stream().map(Course::getTitle).sorted().toList())
                 .build();
-    }
-
-    @Override
-    @Transactional
-    @CachePut(value = "students", key = "#studentId")
-    public StudentResponse assignDepartment(int studentId, int departmentId) {
-        Student s = findStudentOrThrow(studentId);
-        Department d = departmentRepository.findById(departmentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + departmentId));
-
-        // Business rule: changing department drops courses from the old one
-        if (s.getDepartment() != null && !s.getDepartment().getId().equals(departmentId)) {
-            log.info("Student {} changed department, clearing {} courses", studentId, s.getCourses().size());
-            s.getCourses().clear();
-        }
-        s.setDepartment(d);
-        log.info("Student {} assigned to department {}", studentId, d.getCode());
-        return toResponse(studentRepository.save(s));
-    }
-
-    @Override
-    @Transactional
-    @CachePut(value = "students", key = "#studentId")
-    public StudentResponse enrollCourse(int studentId, int courseId) {
-        Student s = findStudentOrThrow(studentId);
-        Course c = courseRepository.findById(courseId)
-                .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
-
-        if (s.getDepartment() == null)
-            throw new BusinessException("Assign a department before enrolling in courses",
-                    "NO_DEPARTMENT", HttpStatus.CONFLICT);
-        if (!c.getDepartment().getId().equals(s.getDepartment().getId()))
-            throw new BusinessException("Course " + c.getCode() + " is not in the student's department",
-                    "COURSE_NOT_IN_DEPARTMENT", HttpStatus.CONFLICT);
-        if (!s.getCourses().add(c))
-            throw new BusinessException("Student already enrolled in " + c.getCode(),
-                    "ALREADY_ENROLLED", HttpStatus.CONFLICT);
-
-        log.info("Student {} enrolled in course {}", studentId, c.getCode());
-        return toResponse(studentRepository.save(s));
-    }
-
-    @Override
-    @Transactional
-    @CachePut(value = "students", key = "#studentId")
-    public StudentResponse dropCourse(int studentId, int courseId) {
-        Student s = findStudentOrThrow(studentId);
-        boolean removed = s.getCourses().removeIf(c -> c.getId().equals(courseId));
-        if (!removed)
-            throw new BusinessException("Student is not enrolled in course " + courseId,
-                    "NOT_ENROLLED", HttpStatus.CONFLICT);
-        log.info("Student {} dropped course {}", studentId, courseId);
-        return toResponse(studentRepository.save(s));
     }
 }

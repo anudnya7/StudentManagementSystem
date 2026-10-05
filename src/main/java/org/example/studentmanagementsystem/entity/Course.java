@@ -8,7 +8,11 @@ import java.util.Set;
 
 @Entity
 @Table(name = "courses")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Course {
 
     @Id

@@ -2,7 +2,6 @@ package org.example.studentmanagementsystem.dto;
 
 import lombok.*;
 
-import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -10,7 +9,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class StudentResponse implements Serializable {
+public class StudentResponse {
     private Integer id;
     private String firstName;
     private String lastName;
