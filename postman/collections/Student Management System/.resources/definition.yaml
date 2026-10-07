@@ -1,0 +1,51 @@
+$kind: collection
+description: Run folders 1 to 5 in order. Login (1.2) saves the JWT automatically.
+variables:
+  - key: baseUrl
+    value: http://localhost:8080
+    disabled: false
+  - key: studentPassword
+    value: StrongPass123
+    disabled: false
+  - key: token
+    value: ""
+    disabled: false
+  - key: runId
+    value: ""
+    disabled: false
+  - key: studentEmail
+    value: ""
+    disabled: false
+  - key: studentPhone
+    value: ""
+    disabled: false
+  - key: studentId
+    value: ""
+    disabled: false
+  - key: otherStudentId
+    value: ""
+    disabled: false
+  - key: departmentId
+    value: ""
+    disabled: false
+  - key: courseId
+    value: ""
+    disabled: false
+  - key: otherPhone
+    value: ""
+    disabled: false
+  - key: batchPhone1
+    value: ""
+    disabled: false
+  - key: batchPhone2
+    value: ""
+    disabled: false
+  - key: auth_password_18q1
+    secret: true
+    disabled: false
+auth:
+  - id: 4627bc76-7614-4b7d-b7e1-9158a87d5c78
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{token}}"

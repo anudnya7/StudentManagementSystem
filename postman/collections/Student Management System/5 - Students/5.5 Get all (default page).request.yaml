@@ -1,0 +1,11 @@
+$kind: http-request
+description: Task 2. Page 0, size 10, sorted by id.
+url: "{{baseUrl}}/api/students/getall"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      pm.test("has paging fields", () => { const j = pm.response.json(); pm.expect(j).to.have.property("content"); pm.expect(j).to.have.property("totalPages"); });
+    language: text/javascript
+order: 5000

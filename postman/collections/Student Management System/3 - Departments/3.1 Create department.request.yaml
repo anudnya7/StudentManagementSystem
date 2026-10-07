@@ -1,0 +1,16 @@
+$kind: http-request
+description: Task 1. Name and code must be unique.
+url: "{{baseUrl}}/api/departments"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: '{"name":"Computer Science {{runId}}","code":"CS{{runId}}"}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", () => pm.response.to.have.status(201));
+      pm.collectionVariables.set("departmentId", pm.response.json().id);
+    language: text/javascript
+order: 1000

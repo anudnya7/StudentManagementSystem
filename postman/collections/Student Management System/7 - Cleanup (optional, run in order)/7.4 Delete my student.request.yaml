@@ -1,0 +1,9 @@
+$kind: http-request
+description: After this the registered login no longer exists. Run 1.1 again to start over.
+url: "{{baseUrl}}/api/students/delete/{{studentId}}"
+method: DELETE
+scripts:
+  - type: afterResponse
+    code: pm.test("Status is 200", () => pm.response.to.have.status(200));
+    language: text/javascript
+order: 4000

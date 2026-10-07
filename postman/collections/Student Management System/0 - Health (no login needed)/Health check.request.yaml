@@ -1,0 +1,13 @@
+$kind: http-request
+description: App is up when status is UP.
+url: "{{baseUrl}}/actuator/health"
+method: GET
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      pm.test("status is UP", () => pm.expect(pm.response.json().status).to.eql("UP"));
+    language: text/javascript
+order: 1000

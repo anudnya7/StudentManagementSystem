@@ -1,0 +1,11 @@
+$kind: http-request
+description: "Should show lastName Patel and the department and course: proves the cache was updated on write."
+url: "{{baseUrl}}/api/students/get/{{studentId}}"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      pm.test("fresh data", () => pm.expect(pm.response.json().lastName).to.eql("Patel"));
+    language: text/javascript
+order: 13000

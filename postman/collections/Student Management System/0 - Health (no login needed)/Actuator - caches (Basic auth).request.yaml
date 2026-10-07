@@ -1,0 +1,14 @@
+$kind: http-request
+description: "Uses HTTP Basic: user 'actuator', password '{{auth_password_18q1}}' (dev defaults from application-dev.properties). Lists cache names after you have called some GET endpoints."
+url: "{{baseUrl}}/actuator/caches"
+method: GET
+auth:
+  type: basic
+  credentials:
+    username: actuator
+    password: "{{auth_password_18q1}}"
+scripts:
+  - type: afterResponse
+    code: pm.test("Status is 200", () => pm.response.to.have.status(200));
+    language: text/javascript
+order: 2000

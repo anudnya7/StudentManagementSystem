@@ -1,0 +1,14 @@
+name: 'Student Management System - Local'
+values:
+  - key: baseUrl
+    value: 'http://localhost:8080'
+    type: default
+    enabled: true
+  - key: username
+    value: user
+    type: default
+    enabled: true
+  - key: password
+    value: '78744b28-3dc2-4962-9fe0-55d170ce074a'
+    type: secret
+    enabled: true

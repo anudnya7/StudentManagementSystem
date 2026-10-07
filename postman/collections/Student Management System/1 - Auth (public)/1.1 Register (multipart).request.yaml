@@ -1,0 +1,37 @@
+$kind: http-request
+description: "Task 3. multipart/form-data: part 'data' = JSON (content type application/json), part 'photo' = optional image. A new unique email and phone are generated on every run."
+url: "{{baseUrl}}/api/auth/register"
+method: POST
+body:
+  type: formdata
+  content:
+    - type: text
+      key: data
+      value: '{"firstName":"Rahul","lastName":"Sharma","email":"{{studentEmail}}","phone":"{{studentPhone}}","dateOfBirth":"2004-05-14","password":"{{studentPassword}}"}'
+      contentType: application/json
+    - type: file
+      key: photo
+      src: []
+      description: Optional. Tick this row and click Select Files to choose a .jpg or .png (max 2MB).
+      disabled: true
+auth:
+  type: noauth
+scripts:
+  - type: beforeRequest
+    code: |-
+      const id = Math.floor(100000 + Math.random() * 900000);
+      pm.collectionVariables.set("runId", id);
+      pm.collectionVariables.set("studentEmail", "rahul" + id + "@college.edu");
+      pm.collectionVariables.set("studentPhone", "9" + Math.floor(100000000 + Math.random() * 900000000));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", () => pm.response.to.have.status(201));
+      const j = pm.response.json();
+      pm.test("response has id and email", () => {
+        pm.expect(j.id).to.be.a("number");
+        pm.expect(j.email).to.eql(pm.collectionVariables.get("studentEmail"));
+      });
+      pm.collectionVariables.set("studentId", j.id);
+    language: text/javascript
+order: 1000

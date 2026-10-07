@@ -1,0 +1,11 @@
+$kind: http-request
+description: Identified from the token, no id needed.
+url: "{{baseUrl}}/api/profile"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      pm.test("email matches", () => pm.expect(pm.response.json().email).to.eql(pm.collectionVariables.get("studentEmail")));
+    language: text/javascript
+order: 1000

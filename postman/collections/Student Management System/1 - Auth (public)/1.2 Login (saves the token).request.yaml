@@ -1,0 +1,20 @@
+$kind: http-request
+description: Returns a JWT. The test script stores it in the collection variable 'token', and every other request sends it automatically.
+url: "{{baseUrl}}/api/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: '{"email":"{{studentEmail}}","password":"{{studentPassword}}"}'
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      const j = pm.response.json();
+      pm.test("token returned", () => pm.expect(j.token).to.be.a("string").and.not.empty);
+      pm.collectionVariables.set("token", j.token);
+    language: text/javascript
+order: 2000

@@ -1,0 +1,9 @@
+$kind: http-request
+description: The second student has no department yet.
+url: "{{baseUrl}}/api/students/{{otherStudentId}}/courses/{{courseId}}"
+method: POST
+scripts:
+  - type: afterResponse
+    code: pm.test("Status is 409", () => pm.response.to.have.status(409));
+    language: text/javascript
+order: 5000
