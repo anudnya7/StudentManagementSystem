@@ -27,6 +27,16 @@ public class Course extends BaseEntity {
 
     private int credits;
 
+    // Maximum seats. columnDefinition default lets Hibernate add this NOT NULL column to a table that already has rows.
+    @Column(nullable = false, columnDefinition = "integer default 30")
+    @Builder.Default
+    private Integer capacity = 30;
+
+    // Seats taken. Only changed inside services (approve / enroll / drop), never set by a client.
+    @Column(nullable = false, columnDefinition = "integer default 0")
+    @Builder.Default
+    private Integer enrolledCount = 0;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "department_id")
     private Department department;

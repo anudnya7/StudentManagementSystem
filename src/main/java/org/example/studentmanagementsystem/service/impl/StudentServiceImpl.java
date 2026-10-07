@@ -2,6 +2,7 @@ package org.example.studentmanagementsystem.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.studentmanagementsystem.config.CacheNames;
 import org.example.studentmanagementsystem.dto.PageResponse;
 import org.example.studentmanagementsystem.dto.StudentRequest;
 import org.example.studentmanagementsystem.dto.StudentResponse;
@@ -14,15 +15,15 @@ import org.example.studentmanagementsystem.exception.PhoneAlreadyExistsException
 import org.example.studentmanagementsystem.exception.ResourceNotFoundException;
 import org.example.studentmanagementsystem.repository.CourseRepository;
 import org.example.studentmanagementsystem.repository.DepartmentRepository;
+import org.example.studentmanagementsystem.repository.EnrollmentRequestRepository;
 import org.example.studentmanagementsystem.repository.StudentRepository;
 import org.example.studentmanagementsystem.repository.StudentSpecifications;
 import org.example.studentmanagementsystem.service.StudentService;
-import org.springframework.dao.DataAccessException;
-import org.example.studentmanagementsystem.config.CacheNames;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -30,6 +31,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.time.Period;
@@ -50,6 +52,7 @@ public class StudentServiceImpl implements StudentService {
     private final StudentRepository studentRepository;
     private final DepartmentRepository departmentRepository;
     private final CourseRepository courseRepository;
+    private final EnrollmentRequestRepository enrollmentRequestRepository;
 
     // ---------- CRUD ----------
 
@@ -197,11 +200,16 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Caching(evict = {
             @CacheEvict(cacheNames = CacheNames.STUDENTS, key = "#id"),
-            @CacheEvict(cacheNames = CacheNames.STUDENT_PAGES, allEntries = true)
+            @CacheEvict(cacheNames = CacheNames.STUDENT_PAGES, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.COURSES, allEntries = true)
     })
     public void deleteStudent(int id) {
         log.debug("Delete requested for id: {}", id);
         Student existing = findStudentOrThrow(id);
+        // free the seats this student was holding
+        existing.getCourses().forEach(c -> c.setEnrolledCount(Math.max(0, c.getEnrolledCount() - 1)));
+        // enrollment requests point at the student (foreign key), remove them first
+        enrollmentRequestRepository.deleteByStudentId(id);
         try {
             studentRepository.delete(existing);
         } catch (DataAccessException ex) {
@@ -216,7 +224,10 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Caching(
             put = @CachePut(cacheNames = CacheNames.STUDENTS, key = "#studentId"),
-            evict = @CacheEvict(cacheNames = CacheNames.STUDENT_PAGES, allEntries = true)
+            evict = {
+                    @CacheEvict(cacheNames = CacheNames.STUDENT_PAGES, allEntries = true),
+                    @CacheEvict(cacheNames = CacheNames.COURSES, allEntries = true)
+            }
     )
     public StudentResponse assignDepartment(int studentId, int departmentId) {
         Student s = findStudentOrThrow(studentId);
@@ -227,6 +238,8 @@ public class StudentServiceImpl implements StudentService {
         if (s.getDepartment() != null && !s.getDepartment().getId().equals(departmentId)) {
             log.info("Student {} changed department, clearing {} courses",
                     studentId, s.getCourses().size());
+            // the old seats become free again
+            s.getCourses().forEach(c -> c.setEnrolledCount(Math.max(0, c.getEnrolledCount() - 1)));
             s.getCourses().clear();
         }
 
@@ -238,11 +251,15 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Caching(
             put = @CachePut(cacheNames = CacheNames.STUDENTS, key = "#studentId"),
-            evict = @CacheEvict(cacheNames = CacheNames.STUDENT_PAGES, allEntries = true)
+            evict = {
+                    @CacheEvict(cacheNames = CacheNames.STUDENT_PAGES, allEntries = true),
+                    @CacheEvict(cacheNames = CacheNames.COURSES, allEntries = true)
+            }
     )
     public StudentResponse enrollCourse(int studentId, int courseId) {
         Student s = findStudentOrThrow(studentId);
-        Course c = courseRepository.findById(courseId)
+        // Lock the course row first: two requests cannot take the last seat together
+        Course c = courseRepository.findByIdForUpdate(courseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
 
         if (s.getDepartment() == null) {
@@ -253,35 +270,60 @@ public class StudentServiceImpl implements StudentService {
             throw new BusinessException("Course " + c.getCode() + " is not in the student's department",
                     "COURSE_NOT_IN_DEPARTMENT", HttpStatus.CONFLICT);
         }
-        if (!s.getCourses().add(c)) {
+        if (s.getCourses().contains(c)) {
             throw new BusinessException("Student already enrolled in " + c.getCode(),
                     "ALREADY_ENROLLED", HttpStatus.CONFLICT);
         }
+        if (c.getEnrolledCount() >= c.getCapacity()) {
+            throw new BusinessException("Course is full: " + c.getCode(),
+                    "COURSE_FULL", HttpStatus.CONFLICT);
+        }
 
-        log.info("Student {} enrolled in course {}", studentId, c.getCode());
+        s.getCourses().add(c);
+        c.setEnrolledCount(c.getEnrolledCount() + 1);
+        courseRepository.save(c);
+
+        log.info("Student {} enrolled in course {} ({}/{})", studentId, c.getCode(),
+                c.getEnrolledCount(), c.getCapacity());
         return toResponse(save(s));
     }
 
     @Override
     @Caching(
             put = @CachePut(cacheNames = CacheNames.STUDENTS, key = "#studentId"),
-            evict = @CacheEvict(cacheNames = CacheNames.STUDENT_PAGES, allEntries = true)
+            evict = {
+                    @CacheEvict(cacheNames = CacheNames.STUDENT_PAGES, allEntries = true),
+                    @CacheEvict(cacheNames = CacheNames.COURSES, allEntries = true)
+            }
     )
     public StudentResponse dropCourse(int studentId, int courseId) {
         Student s = findStudentOrThrow(studentId);
-        boolean removed = s.getCourses().removeIf(c -> c.getId().equals(courseId));
-        if (!removed) {
+        // Lock the course row first, then change the seat count
+        Course c = courseRepository.findByIdForUpdate(courseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
+
+        if (!s.getCourses().remove(c)) {
             throw new BusinessException("Student is not enrolled in course " + courseId,
                     "NOT_ENROLLED", HttpStatus.CONFLICT);
         }
-        log.info("Student {} dropped course {}", studentId, courseId);
+        c.setEnrolledCount(Math.max(0, c.getEnrolledCount() - 1));
+        courseRepository.save(c);
+
+        log.info("Student {} dropped course {} ({}/{})", studentId, courseId,
+                c.getEnrolledCount(), c.getCapacity());
         return toResponse(save(s));
+    }
+
+    @Override
+    public StudentResponse uploadImage(int studentId, MultipartFile file) {
+        return null;
     }
 
     // ---------- helpers ----------
 
     private Student save(Student student) {
         try {
+            // saveAndFlush: audit fields (updatedAt/updatedBy) are set before the response is built
             return studentRepository.saveAndFlush(student);
         } catch (DataAccessException ex) {
             log.error("Database error while saving student", ex);

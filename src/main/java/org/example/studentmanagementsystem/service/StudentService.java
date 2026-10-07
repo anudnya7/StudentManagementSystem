@@ -3,6 +3,7 @@ package org.example.studentmanagementsystem.service;
 import org.example.studentmanagementsystem.dto.PageResponse;
 import org.example.studentmanagementsystem.dto.StudentRequest;
 import org.example.studentmanagementsystem.dto.StudentResponse;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -26,4 +27,6 @@ public interface StudentService {
     StudentResponse enrollCourse(int studentId, int courseId);
 
     StudentResponse dropCourse(int studentId, int courseId);
+
+    StudentResponse uploadImage(int studentId, MultipartFile file);
 }

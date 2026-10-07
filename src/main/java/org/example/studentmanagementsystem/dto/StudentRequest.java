@@ -1,6 +1,7 @@
 package org.example.studentmanagementsystem.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 
 import java.time.LocalDate;
@@ -29,6 +30,10 @@ public record StudentRequest(
         @Schema(example = "2004-05-14", description = "Format yyyy-MM-dd")
         @NotNull(message = "Date of birth is required")
         @Past(message = "Date of birth must be in the past")
-        LocalDate dateOfBirth
+        LocalDate dateOfBirth,
+
+        @Valid
+        @Schema(description = "Optional. Leave out to keep it empty")
+        AddressDto address
 ) {
 }

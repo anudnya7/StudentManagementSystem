@@ -8,6 +8,8 @@ public record CourseResponse(
         String title,
         String code,
         int credits,
+        int capacity,
+        int enrolledCount,
         Integer departmentId,
         String departmentName,
         Instant createdAt,

@@ -19,6 +19,7 @@ import org.example.studentmanagementsystem.service.StudentService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -90,7 +91,7 @@ public class StudentController {
         return studentService.getStudentById(id);
     }
 
-    @Operation(summary = "Replace a student's details", description = "All five fields are required.")
+    @Operation(summary = "Replace a student's details", description = "The first five fields are required. Address is optional; leaving it out clears it.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Updated"),
             @ApiResponse(responseCode = "404", description = "Student not found"),
@@ -121,7 +122,8 @@ public class StudentController {
                 patch.lastName()    != null ? patch.lastName()    : current.getLastName(),
                 patch.email()       != null ? patch.email()       : current.getEmail(),
                 patch.phone()       != null ? patch.phone()       : current.getPhone(),
-                patch.dateOfBirth() != null ? patch.dateOfBirth() : current.getDateOfBirth()
+                patch.dateOfBirth() != null ? patch.dateOfBirth() : current.getDateOfBirth(),
+                patch.address()     != null ? patch.address()     : current.getAddress()
         );
         log.debug("PATCH id={} merged result ready", id);
 
@@ -168,7 +170,7 @@ public class StudentController {
     @Operation(summary = "Enrol in a course", description = "The student needs a department and the course must belong to it.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Enrolled"),
-            @ApiResponse(responseCode = "409", description = "No department, wrong department or already enrolled")
+            @ApiResponse(responseCode = "409", description = "No department, wrong department, already enrolled or course full")
     })
     @PostMapping("/{id}/courses/{courseId}")
     public StudentResponse enroll(@PathVariable int id, @PathVariable int courseId) {
@@ -185,5 +187,17 @@ public class StudentController {
     public StudentResponse drop(@PathVariable int id, @PathVariable int courseId) {
         log.debug("Drop course {} for student {}", courseId, id);
         return studentService.dropCourse(id, courseId);
+    }
+
+    @Operation(summary = "Upload a student's image", description = "Multipart form-data, field name 'file'. JPEG or PNG only. The image is then available at the returned imageUrl.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Uploaded"),
+            @ApiResponse(responseCode = "400", description = "Empty file or not a JPEG/PNG"),
+            @ApiResponse(responseCode = "404", description = "Student not found")
+    })
+    @PostMapping(value = "/{id}/image", consumes = "multipart/form-data")
+    public StudentResponse uploadImage(@PathVariable int id, @RequestParam("file") MultipartFile file) {
+        log.debug("POST /{}/image received", id);
+        return studentService.uploadImage(id, file);
     }
 }

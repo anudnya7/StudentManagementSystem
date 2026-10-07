@@ -64,7 +64,7 @@ public class CourseController {
         return courseService.getById(id);
     }
 
-    @Operation(summary = "Replace a course", description = "All fields are required.")
+    @Operation(summary = "Replace a course", description = "All fields are required except capacity.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Updated"),
             @ApiResponse(responseCode = "404", description = "Not found"),
@@ -93,7 +93,8 @@ public class CourseController {
                 patch.title()        != null ? patch.title()        : current.title(),
                 patch.code()         != null ? patch.code()         : current.code(),
                 patch.credits()      != null ? patch.credits()      : current.credits(),
-                patch.departmentId() != null ? patch.departmentId() : current.departmentId()
+                patch.departmentId() != null ? patch.departmentId() : current.departmentId(),
+                patch.capacity()     != null ? patch.capacity()     : current.capacity()
         );
 
         // 3. Validate the merged result with the same rules as POST/PUT
@@ -114,7 +115,7 @@ public class CourseController {
         return ResponseEntity.ok(courseService.update(id, merged));
     }
 
-    @Operation(summary = "Delete a course", description = "Blocked while it is still in use.")
+    @Operation(summary = "Delete a course", description = "Blocked while students are enrolled.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Deleted"),
             @ApiResponse(responseCode = "404", description = "Not found"),

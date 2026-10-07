@@ -25,7 +25,11 @@ public class Department extends BaseEntity {
     @Column(nullable = false, unique = true, length = 10)
     private String code;
 
-    @OneToMany(mappedBy = "department")
+    // Bidirectional 1:N owned by Course (mappedBy = "department").
+    // cascade = ALL: saving or deleting a Department cascades to its Courses.
+    // orphanRemoval = true: a Course removed from THIS list is deleted from the database.
+    // (DepartmentServiceImpl still refuses to delete a department that has courses or students.)
+    @OneToMany(mappedBy = "department", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<Course> courses = new ArrayList<>();
 

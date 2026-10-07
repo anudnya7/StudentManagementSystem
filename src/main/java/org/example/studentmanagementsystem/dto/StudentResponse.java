@@ -12,7 +12,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class StudentResponse implements Serializable {
-    private static final long serialVersionUID = 2L;
+    private static final long serialVersionUID = 3L;
 
     private Integer id;
     private String firstName;
@@ -22,6 +22,8 @@ public class StudentResponse implements Serializable {
     private String phone;
     private LocalDate dateOfBirth;
     private int age;
+    private AddressDto address;
+    private String imageUrl;
     private String departmentName;
     private List<String> courses;
 

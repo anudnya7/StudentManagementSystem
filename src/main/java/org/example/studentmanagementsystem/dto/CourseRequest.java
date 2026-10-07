@@ -26,6 +26,11 @@ public record CourseRequest(
 
         @Schema(example = "1", description = "Id of an existing department")
         @NotNull(message = "departmentId is required")
-        Integer departmentId
+        Integer departmentId,
+
+        @Schema(example = "30", description = "Maximum seats, 1 to 500. Optional: defaults to 30 on create, unchanged on update")
+        @Min(value = 1, message = "Capacity must be between 1 and 500")
+        @Max(value = 500, message = "Capacity must be between 1 and 500")
+        Integer capacity
 ) {
 }
