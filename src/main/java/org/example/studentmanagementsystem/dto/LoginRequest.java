@@ -5,9 +5,9 @@ import jakarta.validation.constraints.NotBlank;
 
 public record LoginRequest(
 
-        @Schema(example = "rahul@college.edu")
-        @NotBlank(message = "Email is required")
-        String email,
+        @Schema(example = "rahul")
+        @NotBlank(message = "Username is required")
+        String username,
 
         @Schema(example = "StrongPass123")
         @NotBlank(message = "Password is required")

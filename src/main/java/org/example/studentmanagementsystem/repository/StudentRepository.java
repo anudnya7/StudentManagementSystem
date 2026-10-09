@@ -15,6 +15,9 @@ public interface StudentRepository extends JpaRepository<Student, Integer>,
 
     Optional<Student> findByEmailIgnoreCase(String email);
 
+    // the student that belongs to a login (empty for an admin)
+    Optional<Student> findByUserUsernameIgnoreCase(String username);
+
     boolean existsByDepartmentId(Integer departmentId);
 
     boolean existsByCoursesId(Integer courseId);

@@ -21,18 +21,18 @@ public class JwtService {
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(String email) {
+    public String generateToken(String username) {
         Date now = new Date();
-        return Jwts.builder()
-                .subject(email)
-                .issuedAt(now)
+        return Jwts.builder() //Starts building the JWT.
+                .subject(username) //Starts building the JWT.
+                .issuedAt(now) //Records when the token was issued.
                 .expiration(new Date(now.getTime() + expirationMs))
                 .signWith(key)
                 .compact();
     }
 
     /** Throws JwtException if the token is invalid, tampered with or expired. */
-    public String extractEmail(String token) {
+    public String extractUsername(String token) {
         return Jwts.parser()
                 .verifyWith(key)
                 .build()

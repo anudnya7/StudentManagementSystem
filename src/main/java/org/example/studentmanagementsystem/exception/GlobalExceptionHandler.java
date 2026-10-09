@@ -5,6 +5,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;   // NEW import
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -32,6 +33,19 @@ public class GlobalExceptionHandler {
         body.put("code", ex.getErrorCode());
         body.put("message", ex.getMessage());
         return new ResponseEntity<>(body, ex.getStatus());
+    }
+
+    // NEW: @PreAuthorize says no: without this handler the catch-all below would turn it into a 500
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
+        log.warn("Access denied: {}", ex.getMessage());
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", 403);
+        body.put("error", "Forbidden");
+        body.put("message", "You do not have permission to do this");
+        return new ResponseEntity<>(body, HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
@@ -151,5 +165,22 @@ public class GlobalExceptionHandler {
         body.put("error", "Payload Too Large");
         body.put("message", "File exceeds the 2MB limit");
         return new ResponseEntity<>(body, HttpStatus.PAYLOAD_TOO_LARGE);
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodValidation(HandlerMethodValidationException ex) {
+        Map<String, String> errors = new LinkedHashMap<>();
+        ex.getParameterValidationResults().forEach(result ->
+                result.getResolvableErrors().forEach(err ->
+                        errors.put(result.getMethodParameter().getParameterName(), err.getDefaultMessage())));
+
+        log.warn("Validation failed: {}", errors);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", 400);
+        body.put("error", "Validation Failed");
+        body.put("errors", errors);
+        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
     }
 }

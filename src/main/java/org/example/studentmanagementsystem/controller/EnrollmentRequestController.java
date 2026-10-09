@@ -15,11 +15,12 @@ import org.example.studentmanagementsystem.entity.EnrollmentStatus;
 import org.example.studentmanagementsystem.service.EnrollmentRequestService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;   // NEW import
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@Tag(name = "Enrollment Requests", description = "A student applies for a course, the department approves or rejects")
+@Tag(name = "Enrollment Requests", description = "A student applies for a course (only for himself), an ADMIN approves or rejects")
 @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequestMapping("/api/enrollment-requests")
@@ -34,12 +35,15 @@ public class EnrollmentRequestController {
             @ApiResponse(responseCode = "404", description = "Student or course not found"),
             @ApiResponse(responseCode = "409", description = "No department, wrong department, already enrolled or already pending")
     })
+    // NEW: a student may apply only for himself (admin may apply for anybody)
+    @PreAuthorize("hasRole('ADMIN') or @accessChecker.isSelf(#request.studentId(), authentication)")
     @PostMapping
     public ResponseEntity<EnrollmentResponse> apply(@Valid @RequestBody EnrollmentApplyRequest request) {
         return new ResponseEntity<>(enrollmentRequestService.apply(request), HttpStatus.CREATED);
     }
 
     @Operation(summary = "List requests", description = "Optionally filter by status: PENDING, APPROVED or REJECTED.")
+    @PreAuthorize("hasRole('ADMIN')")   // NEW: the full list is for admins only
     @GetMapping
     public List<EnrollmentResponse> getAll(
             @Parameter(description = "PENDING, APPROVED or REJECTED") @RequestParam(required = false) EnrollmentStatus status) {
@@ -51,12 +55,16 @@ public class EnrollmentRequestController {
             @ApiResponse(responseCode = "200", description = "Found"),
             @ApiResponse(responseCode = "404", description = "Not found")
     })
+    // NEW: admin, or the student who owns this request
+    @PreAuthorize("hasRole('ADMIN') or @accessChecker.ownsRequest(#id, authentication)")
     @GetMapping("/{id}")
     public EnrollmentResponse getById(@PathVariable int id) {
         return enrollmentRequestService.getById(id);
     }
 
     @Operation(summary = "All requests of one student")
+    // NEW: admin, or the student himself
+    @PreAuthorize("hasRole('ADMIN') or @accessChecker.isSelf(#studentId, authentication)")
     @GetMapping("/student/{studentId}")
     public List<EnrollmentResponse> getByStudent(@PathVariable int studentId) {
         return enrollmentRequestService.getByStudent(studentId);
@@ -69,6 +77,7 @@ public class EnrollmentRequestController {
             @ApiResponse(responseCode = "404", description = "Not found"),
             @ApiResponse(responseCode = "409", description = "Course full or request already processed")
     })
+    @PreAuthorize("hasRole('ADMIN')")   // NEW: only admins decide
     @PostMapping("/{id}/approve")
     public EnrollmentResponse approve(@PathVariable int id) {
         return enrollmentRequestService.approve(id);
@@ -80,6 +89,7 @@ public class EnrollmentRequestController {
             @ApiResponse(responseCode = "404", description = "Not found"),
             @ApiResponse(responseCode = "409", description = "Request already processed")
     })
+    @PreAuthorize("hasRole('ADMIN')")   // NEW: only admins decide
     @PostMapping("/{id}/reject")
     public EnrollmentResponse reject(@PathVariable int id) {
         return enrollmentRequestService.reject(id);

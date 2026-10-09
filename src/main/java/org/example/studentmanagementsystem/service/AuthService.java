@@ -16,9 +16,9 @@ public interface AuthService {
 
     AuthResponse login(LoginRequest request);
 
-    ProfileResponse getProfile(String email);
+    ProfileResponse getProfile(String username);
 
-    String updatePhoto(String email, MultipartFile file) throws IOException;
+    String updatePhoto(String username, MultipartFile file) throws IOException;
 
-    Resource getPhoto(String email);
+    Resource getPhoto(String username);
 }

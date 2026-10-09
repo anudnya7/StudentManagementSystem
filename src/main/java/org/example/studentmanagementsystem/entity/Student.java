@@ -35,8 +35,11 @@ public class Student extends BaseEntity {
     @Column(nullable = false)
     private LocalDate dateOfBirth;
 
-    // BCrypt hash. Null for students created without registration (cannot log in)
-    private String password;
+    // The login of this student. Null for students created by an admin without registration
+    // (they cannot log in). Deleting the student deletes the login too.
+    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
+    @JoinColumn(name = "user_id", unique = true)
+    private User user;
 
     // Name of the photo file on disk (the bytes live in the upload folder, not in the database).
     // The column keeps its old name photo_file_name so existing data still works.
